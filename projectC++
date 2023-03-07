@@ -1,0 +1,1450 @@
+//tema proiectului: gestionarea profilelor senzorilor intr-un sistem de irigatie de tip IoT, care va monitoriza lumina si apa pe baza datelor pe care le preia de la senzori
+//in legatura cu umiditatea solului si intensitatea luminii naturale inregistrate
+
+/*clase: 
+senzor (clasa abstracta, va fi mostenita de fiecare clasa de senzori)
+senzorUmiditate - is a Senzor, has a SenzorTemperatura
+senzorTemperatura - is a Senzor
+senzorLumina - is a Senzor
+zone (pe senzori) - fiecare lucreaza cu mai multi senzori dintr-un singur tip, clasa template care contine un nr de senzori si un vector de senzori
+clasa de exceptii
+*/
+
+#include <iostream>
+#include <string>
+#include <fstream>
+#define CRT_SECURE_NO_WARNINGS
+using namespace std;
+template <class tip>
+class zone
+{
+	int nrSenzori=0;
+	tip* senzori=NULL;
+	static const char* numeZona;
+public:
+	zone(){}
+	zone(int nr, tip* senzori)
+	{
+		this->nrSenzori = nr;
+		if (senzori != NULL)
+		{
+			for (int i = 0; i < nrSenzori; i++)
+			{
+				this->senzori[i] = senzori[i];
+			}
+		}
+	}
+	zone(const zone& z)
+	{
+		nrSenzori = z.nrSenzori;
+		senzori = new tip [nrSenzori];
+		for (int i = 0; i < nrSenzori; i++)
+		{
+			senzori[i] = z.senzori[i];
+		}
+	}
+	~zone()
+	{
+		delete[]numeZona;
+		delete[]senzori;
+	}
+	static const char* getNumeZona()
+	{
+		return numeZona;
+	}
+	int getNrSenzori()
+	{
+		return nrSenzori;
+	}
+	tip getSenzori(int i)
+	{
+		return senzori[i];
+	}
+	void setNrSenzori(int nr)
+	{
+		nrSenzori = nr;
+	}
+	void setSenzori(int nr, tip* senzori)
+	{
+		if (this->senzori != NULL)
+			delete[]this->senzori;
+		this->senzori = new tip[nr];
+		for (int i = 0; i < nr; i++)
+		{
+			this->senzori[i] = senzori[i];
+		}
+	}
+	tip operator[](int i)
+	{
+		return senzori[i];
+	}
+};
+
+class exceptii: public exception
+{
+public:
+	string mesaj;
+exceptii()
+{
+	this->mesaj = "No exception yet.";
+}
+exceptii(string mesaj)
+{
+	this->mesaj = mesaj;
+}
+~exceptii(){}
+string exceptieDimensiune()
+{
+	this->mesaj = "Dimensiunea acestui senzor nu exista.";
+	return mesaj;
+}
+string exceptieUmiditateRel()
+{
+	this->mesaj = "Umiditatea relativa introdusa nu exista in tabelul de umiditate.";
+		return mesaj;
+}
+string exceptieTemperatura()
+{
+	this->mesaj = "Temperatura introdusa nu exista in tabelul de umiditate.";
+		return mesaj;
+}
+string luminaStinsa()
+{
+	this->mesaj = " Atentie!Lumina e stinsa si nu e nici lumina naturala. Aprindeti luminile ambientale.";
+	return mesaj;
+}
+string exceptieDeschidereFisier()
+{
+	this->mesaj = "Nu s-a deschis fisierul.";
+	return mesaj;
+}
+string nuApartine()
+{
+	mesaj = "Senzorul nu face parte din sistem.";
+	return mesaj;
+}
+int luminaAprinsa()
+{
+	return 1000;
+}
+};
+class senzor
+{
+protected:
+	float pret;
+	float dimensiuni[3] = { 1, 2, 3 };
+	int nrInteractiuniUtilizator;
+
+public:
+	senzor()
+	{
+		pret = 0;
+		dimensiuni[0] = 1;
+		dimensiuni[1] = 2;
+		dimensiuni[2] = 3;
+		nrInteractiuniUtilizator = 0;
+	}
+	senzor(float pret, float dim[3], int nr) : pret(pret)
+	{
+
+		for (int i = 0; i < 3; i++)
+			dimensiuni[i] = dim[i];
+		nrInteractiuniUtilizator = nr;
+	}
+	senzor(const senzor& s)
+	{
+		pret = s.pret;
+		dimensiuni[0] = s.dimensiuni[0];
+		dimensiuni[1] = s.dimensiuni[1];
+		dimensiuni[2] = s.dimensiuni[2];
+		nrInteractiuniUtilizator = s.nrInteractiuniUtilizator;
+	}
+	senzor& operator=(const senzor& s)
+	{
+		pret = s.pret;
+		dimensiuni[0] = s.dimensiuni[0];
+		dimensiuni[1] = s.dimensiuni[1];
+		dimensiuni[2] = s.dimensiuni[2];
+		nrInteractiuniUtilizator = s.nrInteractiuniUtilizator;
+		return *this;
+	}
+	virtual ~senzor() {}
+	virtual double outputDupaPrelucrare() = 0;
+	virtual const char* getZona() = 0;
+	float getPret()
+	{
+		return pret;
+	}
+	float getDimensiuniByIndex(int i)
+	{
+		exceptii ex;
+		if (i < 3 && i>0)
+			return dimensiuni[i];
+		else
+			throw ex.exceptieDimensiune();
+	}
+	int getNrInteractiuni()
+	{
+		return nrInteractiuniUtilizator;
+	}
+
+	void goToFileSenzor(fstream& f)
+	{
+		f << pret << " " << nrInteractiuniUtilizator << " ";
+		for (int i = 0; i < 3; i++)
+		{
+			f << dimensiuni[i] << " ";
+		}
+		f << "\n";
+	}
+	void setPret(float pret)
+	{
+		this->pret = pret;
+	}
+	void setDimensiuni(float lungime, float latime, float inaltime)
+	{
+		dimensiuni[0] = lungime;
+		dimensiuni[1] = latime;
+		dimensiuni[2] = inaltime;
+	}
+	void setNrInteractiuniUtilizator(int nrInt)
+	{
+		nrInteractiuniUtilizator = nrInt;
+	}
+	friend fstream& operator>>(fstream& file, senzor& s)
+	{
+		file >> s.pret >> s.nrInteractiuniUtilizator;
+		for (int i = 0; i < 3; i++)
+		{
+			file>> s.dimensiuni[i];
+		}
+		return file;
+	}
+	friend fstream& operator<<(fstream& file, senzor& s)
+	{
+		file << s.pret << " " << s.nrInteractiuniUtilizator << " ";
+		for (int i = 0; i < 3; i++)
+		{
+			file << s.dimensiuni[i] << " ";
+		}
+		file << "\n";
+		return file;
+	}
+	friend ostream& operator<<(ostream& out, senzor& s)
+	{
+		out << "pret:" << s.pret <<endl<< "Nr interactiuni: " <<s.nrInteractiuniUtilizator;
+		for (int i = 0; i < 3; i++)
+		{
+			out <<endl<<"dimensiune "<<i+1<<": "<< s.dimensiuni[i];
+		}
+		return out;
+	}
+	friend istream& operator>>(istream& in, senzor& s)
+	{
+		cout << endl << "Pret: ";
+		in >> s.pret;
+		cout << endl << "Numar de interactiuni utilizator: ";
+		in >> s.nrInteractiuniUtilizator;
+		for (int i = 0; i < 3; i++)
+		{
+			cout << endl << "Dimensiunea " << i + 1 << ": ";
+			in >> s.dimensiuni[i];
+		}
+		return in;
+	}
+};
+class senzorTemperatura : public senzor
+{
+	const int id;
+	double temperaturaPreluata;
+	double* istoricTemperaturi;
+	int momente;
+	static int nrST;
+	bool apartine;
+public:
+	senzorTemperatura() :senzor(), id(nrST++)
+	{
+		temperaturaPreluata = 0;
+		istoricTemperaturi = NULL;
+		momente = 0;
+		apartine = 1;
+	}
+	senzorTemperatura(int id) :senzor(), id(id)
+	{
+		temperaturaPreluata = 0;
+		istoricTemperaturi = NULL;
+		momente = 0;
+		apartine = 1;
+		nrST++;
+	}
+	senzorTemperatura(double temp, int momente, double* istoric, bool ap, float pret, float dimensiuni[3], int nr) :senzor(pret, dimensiuni, nr), id(nrST++)
+	{
+		temperaturaPreluata = temp;
+		this->momente = momente;
+		istoricTemperaturi = new double[momente];
+		for (int i = 0; i < this->momente; i++)
+		{
+			istoricTemperaturi[i] = istoric[i];
+		}
+		apartine = ap;
+	}
+	senzorTemperatura(const senzorTemperatura& st):senzor(st), id(nrST++)
+	{
+		this->temperaturaPreluata = st.temperaturaPreluata;
+		this->momente = st.momente;
+		this->apartine = st.apartine;
+		this->istoricTemperaturi = new double[momente];
+		for (int i = 0; i < this->momente; i++)
+		{
+			this->istoricTemperaturi[i] = st.istoricTemperaturi[i];
+		}
+	}
+	~senzorTemperatura()
+	{
+		nrST--;
+	}
+	double outputDupaPrelucrare()
+	{
+		cout << endl << "Se preia temperatura din mediu ..." << endl;
+		return getTemperaturaPreluata();
+	}
+
+	double getTemperaturaPreluata()
+	{
+		return temperaturaPreluata;
+	}
+	double getIstoricTemperaturi(int moment)
+	{
+		exceptii ex;
+		if (moment >= 0 && moment < momente)
+		{
+			return istoricTemperaturi[moment];
+		}
+		else
+			throw ex.exceptieDimensiune();
+	}
+	int getMomente()
+	{
+		return momente;
+	}
+	static int getNrST()
+	{
+		return nrST;
+	}
+	bool apartineSistemului ()
+	{
+		return apartine;
+	}
+	const char* getZona()
+	{
+		return zone<senzorTemperatura> :: getNumeZona();
+	}
+	void setTemperatura(double temp)
+	{
+		temperaturaPreluata = temp;
+	}
+	void setIstoricTemperaturi(int dimensiune, double* istoric)
+	{
+		if (istoricTemperaturi != NULL)
+		{
+			delete[]istoricTemperaturi;
+		}
+		momente = dimensiune;
+		istoricTemperaturi = new double[dimensiune];
+		for (int i = 0; i < momente; i++)
+		{
+			istoricTemperaturi[i] = istoric[i];
+		}
+	}
+	void setIstoricByIndex(int i, double valoare)
+	{
+		exceptii exc;
+		if (i >= 0 && i < momente)
+		{
+			istoricTemperaturi[i] = valoare;
+		}
+		else
+			throw exc.exceptieDimensiune();
+	}
+	senzorTemperatura& operator=(const senzorTemperatura& st)
+	{
+		this->temperaturaPreluata=st.temperaturaPreluata;
+		this->momente=st.momente;
+		this->apartine=st.apartine;
+		if (this->istoricTemperaturi != NULL)
+		{
+			delete[]this->istoricTemperaturi;
+		}
+		this->istoricTemperaturi = new double[momente];
+		for (int i = 0; i < this->momente; i++)
+		{
+			this->istoricTemperaturi[i] = st.istoricTemperaturi[i];
+		}
+		return *this;
+	}
+	senzorTemperatura operator++(int) {
+		senzorTemperatura copie;
+		copie = *this;
+		this->temperaturaPreluata++;
+		return copie;
+	}
+	senzorTemperatura operator--(int) {
+		senzorTemperatura copie;
+		copie = *this;
+		this->temperaturaPreluata--;
+		return copie;
+	}
+	double& operator[](int i)
+	{
+		exceptii ex;
+		if (i >= 0 && i < momente)
+		{
+			return istoricTemperaturi[i];
+		}
+		else
+		{
+		throw ex.exceptieDimensiune();
+		}
+
+	}
+	senzorTemperatura operator+=(int a)
+	{
+		this->temperaturaPreluata+=a;
+		return *this;
+	}
+	senzorTemperatura operator+(int a)
+	{
+		senzorTemperatura copie;
+		copie = *this;
+		copie.temperaturaPreluata += a;
+		return copie;
+	}
+	friend fstream& operator<<(fstream& file, senzorTemperatura& st);
+	friend ostream& operator<<(ostream& out, senzorTemperatura& st)
+	{
+		out << endl<< "SENZOR TEMPERATURA" << endl;
+		out << "ID: "  << st.id << endl<< " Temperatura preluata: " << endl << st.temperaturaPreluata << endl << "Momente in care a fost inregistrata temp: " << st.momente <<endl<< "Istoric:";
+		for (int i = 0; i < st.momente; i++)
+		{
+			out << endl << st.istoricTemperaturi[i] ;
+		}
+		out << endl << "Apartine sistemului: " << st.apartine << endl << "Zona in care a fost amplasat: ";
+		if (st.apartine)
+			out << st.getZona() << endl;
+		else
+			out << zone<senzor>::getNumeZona()<<endl;
+		out << (senzor&)st;
+		return out;
+	}
+	friend fstream& operator>> (fstream& file, senzorTemperatura& st)
+	{
+		string zona;
+		int id;
+		file >> id >> st.temperaturaPreluata >> st.momente;
+		delete[]st.istoricTemperaturi;
+		st.istoricTemperaturi = new double[st.momente];
+		for (int i = 0; i < st.momente; i++)
+		{
+			file >> st.istoricTemperaturi[i];
+		}
+		file >> st.apartine;
+		file >> zona;//zona nu are importanta!! explicata la supraincarcarea operatorului >> pentru senzorii de lumina.
+		file >> (senzor&)st;
+		return file;
+	}
+	friend istream& operator>> (istream& in, senzorTemperatura& st)
+	{
+		cout << endl << "Temperatura preluata: ";
+		in >> st.temperaturaPreluata;
+		cout << endl << "Numarul de momente inregistrate in trecut: ";
+		in >> st.momente;
+		delete[]st.istoricTemperaturi;
+		st.istoricTemperaturi = new double[st.momente];
+		for (int i = 0; i < st.momente; i++)
+		{
+			cout << endl << "Moment " << i + 1 << ": ";
+			in >> st.istoricTemperaturi[i];
+		}
+		cout << endl << " Apartine sistemului? 1-DA, 0-NU: ";
+		in >> st.apartine;
+		in >> (senzor&)st;
+		return in;
+	}
+
+};
+ fstream& operator<<(fstream& file, senzorTemperatura& st)
+{
+	file << st.id <<" "<< st.temperaturaPreluata <<" " << st.momente<<" ";
+	for (int i = 0; i < st.momente; i++)
+	{
+		file << st.istoricTemperaturi[i]<< " ";
+	}
+
+	file << st.apartine << " ";
+	if (st.apartine)
+	{
+		file << st.getZona() << " ";
+	}
+	else
+		file << zone<senzor>::getNumeZona()<<" ";
+	st.goToFileSenzor(file);
+	return file;
+}
+class senzorUmiditate : public senzor
+{
+	senzorTemperatura* st = new senzorTemperatura(20, 3, new double[3]{ 21, 22, 25 }, 1, 23, new float[3]{ 1, 2, 3 }, 3);
+	const int id;
+	static int nrSU;
+	double umiditateRelativa;
+	bool apartine;
+public:
+	senzorUmiditate():senzor(), id(nrSU++)
+	{
+		umiditateRelativa = 0.3;
+		apartine = 1;
+	}
+	senzorUmiditate(int id) :senzor(), id(id)
+	{
+		umiditateRelativa = 0.3;
+		apartine = 1;
+		nrSU++;
+	}
+	senzorUmiditate(double umiditate, senzorTemperatura& st, float pret, float dimensiuni[3], int nrInteractiuni, bool ap) :senzor(pret, dimensiuni, nrInteractiuni), id(nrSU++)
+	{
+		*(this->st) = st;
+		apartine = ap;
+		umiditateRelativa = umiditate;
+	}
+	senzorUmiditate(const senzorUmiditate& su) :senzor(su), id(nrSU++)
+	{
+		*st = *(su.st);
+		umiditateRelativa = su.umiditateRelativa;
+		apartine = su.apartine;
+	}
+	senzorUmiditate operator=(const senzorUmiditate& su)
+	{
+		*st = *(su.st);
+		umiditateRelativa = su.umiditateRelativa;
+		apartine = su.apartine;
+		(senzor&)*this = (senzor&)su;
+		return *this;
+	}
+	~senzorUmiditate()
+	{
+		nrSU--;
+		delete st;
+	}
+	static int getNrSU()
+	{
+		return nrSU;
+	}
+	int getID()
+	{
+		return id;
+	}
+	double getUmiditateRelativa()
+	{
+		return umiditateRelativa;
+	}
+	bool apartineSistemului()
+	{
+		return apartine;
+	}
+	void setUmiditateRelativa(double umiditate)
+	{
+		umiditateRelativa = umiditate;
+	}
+	void setApartineSistemului(bool ap)
+	{
+		apartine = ap;
+	}
+	const char* getZona()
+	{
+		return zone<senzorUmiditate> ::getNumeZona();
+	}
+	senzorTemperatura& getST()
+	{
+		return *st;
+	}
+	explicit operator senzorTemperatura&()
+	{
+		return *(st);
+	}
+	bool operator<(senzorUmiditate& su)
+	{
+		return nrInteractiuniUtilizator < su.nrInteractiuniUtilizator;
+	}
+	bool operator!()
+	{
+		return !apartine;
+	}
+	void operator-=(double a)
+	{
+		if (this->umiditateRelativa > a)
+			umiditateRelativa -= a;
+	}
+	senzorUmiditate operator++()//preincrementare
+	{
+		this->nrInteractiuniUtilizator++;
+		return *this;
+	}
+	senzorUmiditate& operator--()
+	{
+		this->nrInteractiuniUtilizator--;
+		return *this;
+	}
+	double outputDupaPrelucrare()
+	{
+		exceptii exc;
+		double** matrix=new double*[37];
+		for (int i = 0; i < 37; i++)
+		{
+			matrix[i] = new double[15];
+		}
+		fstream file;
+		file.open("tabelUmid.txt", ios::in);
+		for (int i = 0; i < 37; i++)
+		{
+			for (int j = 0; j < 15; j++)
+			{
+				file >> matrix[i][j];
+			}
+		}
+		for (int i = 0; i < 37; i++)
+		{
+			if (matrix[i][0] == (*st).getTemperaturaPreluata())
+			{
+				for (int j = 0; j < 15; j++)
+				{
+					if (matrix[0][j] == umiditateRelativa)
+						return matrix[i][j];
+					
+				}
+				throw exc.exceptieUmiditateRel();
+			}
+			
+		}
+
+				file.close();
+				for (int i = 0; i < 37; i++)
+				{
+					delete[]matrix[i];
+				}
+				delete[]matrix;
+				throw exc.exceptieTemperatura();
+	}
+	friend fstream& operator<<(fstream& file, senzorUmiditate& su)
+	{
+		file << su.id << " " << su.umiditateRelativa << " "<< su.apartine << " ";
+		file << *(su.st);
+		if (su.apartine)
+		{
+			file << " " << su.getZona() << " ";
+		}
+		else
+			file << " " << zone<senzor>::getNumeZona() << " ";
+		su.goToFileSenzor(file);
+		return file;
+	}
+	friend fstream& operator>>(fstream& file, senzorUmiditate& su)
+	{
+		int id;
+		string zona;
+		file >>id>> su.umiditateRelativa >> su.apartine;
+		file >> *(su.st);
+		file >> zona;
+		file >> (senzor&)su;
+		return file;
+	}
+	friend istream& operator>>(istream& in, senzorUmiditate& su)
+	{
+		cout << endl << "Umiditate relativa: ";
+		in >> su.umiditateRelativa;
+		cout << endl << "Apartine sistemului? 1-DA, 0-NU: ";
+		in >> su.apartine;
+		in >> *(su.st);
+		in >> (senzor&)su;
+		return in;
+	}
+	friend ostream& operator<<(ostream& out, senzorUmiditate& su)
+	{
+		out << endl << "SENZOR UMIDITATE " << endl;
+		out << endl << "ID: " << su.id;
+		out << endl << "Umiditate relativa: ";
+		out << su.umiditateRelativa;
+		out << endl << "Apartine sistemului 1-DA, 0-NU: ";
+		out << su.apartine;
+		out << endl << "Zona amplasare: ";
+		if (su.apartine)
+		{
+			out << su.getZona();
+		}
+		else
+			out << zone<senzor>::getNumeZona();
+		out << *(su.st);
+		out << (senzor&)su;
+		return out;
+	}
+};
+class senzorLumina : public senzor
+{
+	static int nrSL;
+	const int id;
+	int valoarePreluata;
+	float durataViataZile;
+	bool apartine;
+
+public:
+	senzorLumina() : senzor(), id(nrSL++)
+	{
+		valoarePreluata = 0;
+		durataViataZile = 100;
+		apartine = 1;
+	}
+	senzorLumina(int id) : senzor(), id(id)
+	{
+		valoarePreluata = 0;
+		durataViataZile = 100;
+		apartine = 1;
+		nrSL++;
+	}
+	senzorLumina(int valoarePreluata, float durata, bool ap, float pret, float lung, float lat, float inaltime, int nrInteractiuni): senzor(), id(nrSL++)
+	{
+		this->valoarePreluata = valoarePreluata;
+		durataViataZile = durata;
+		apartine = ap;
+		setDimensiuni(lung, lat, inaltime);
+		setPret(pret);
+		setNrInteractiuniUtilizator(nrInteractiuni);
+	}
+	senzorLumina(int id, int valoarePreluata, float durata, bool ap, float pret, float lung, float lat, float inaltime, int nrInteractiuni) : senzor(), id(id)
+	{
+		this->valoarePreluata = valoarePreluata;
+		durataViataZile = durata;
+		apartine = ap;
+		setDimensiuni(lung, lat, inaltime);
+		setPret(pret);
+		setNrInteractiuniUtilizator(nrInteractiuni);
+	}
+	~senzorLumina() { nrSL--; }
+	senzorLumina(const senzorLumina& s):senzor(s), id(nrSL++)
+	{
+		this->valoarePreluata = s.valoarePreluata;
+		durataViataZile = s.durataViataZile;
+		apartine = s.apartine;
+		setDimensiuni(s.dimensiuni[0], s.dimensiuni[1], s.dimensiuni[2]);
+		setPret(s.pret);
+		setNrInteractiuniUtilizator(s.nrInteractiuniUtilizator);
+	}
+	senzorLumina operator=(const senzorLumina& s)
+	{
+		this->valoarePreluata = s.valoarePreluata;
+		durataViataZile = s.durataViataZile;
+		apartine = s.apartine;
+		setDimensiuni(s.dimensiuni[0], s.dimensiuni[1], s.dimensiuni[2]);
+		setPret(s.pret);
+		setNrInteractiuniUtilizator(s.nrInteractiuniUtilizator);
+		return *this;
+	}
+	static int getNrSL()
+	{
+		return nrSL;
+	}
+	int getID()
+	{
+		return id;
+	}
+	int getValoarePreluata()
+	{
+		return valoarePreluata;
+	}
+	float getDurataViata()
+	{
+		return durataViataZile;
+	}
+	bool apartineSistemului()
+	{
+		return apartine;
+	}
+	void setValoarePreluata(int valoare)
+	{
+		valoarePreluata = valoare;
+	}
+	void setDurataViataNoua(float durata)
+	{
+		durataViataZile = durata;
+	}
+	void setApartine(bool ap)
+	{
+		apartine = ap;
+	}
+	const char* getZona()
+	{
+		return zone<senzorLumina>::getNumeZona();
+	}
+
+	double outputDupaPrelucrare()
+	{
+		exceptii ex;
+		if (valoarePreluata < 420)
+		{
+			throw ex.luminaStinsa();
+		}
+		return valoarePreluata;
+	}
+	senzorLumina& operator*(senzorLumina s)
+	{
+		senzorLumina sl=*this;
+		sl.valoarePreluata = this->valoarePreluata * s.valoarePreluata;
+		return sl;
+	}
+	senzorLumina operator+(int valoare)
+	{
+		senzorLumina sl=*this;
+		sl.valoarePreluata += valoare;
+		return sl;
+	}
+	friend senzorLumina& operator+(int valoare, senzorLumina& s)
+	{
+		senzorLumina sl;
+		sl.valoarePreluata += valoare;
+		return sl;
+	}
+	senzorLumina operator--()
+	{
+		this->durataViataZile--;
+		return *this;
+	}
+	bool operator()()
+	{
+		if (this->valoarePreluata < 420)
+		{
+			return 0;
+		}
+		else
+			return 1;
+	}
+	senzorLumina operator*=(int val)
+	{
+		this->valoarePreluata *= val;
+		return *this;
+	}
+	void aprindeLumina()
+	{
+		if (!this->operator()())
+		{
+			this->valoarePreluata = 890;
+		}
+		else
+		{
+			exceptii ex;
+			ex.luminaAprinsa();
+		}
+	}
+	friend fstream& operator<<(fstream& file, senzorLumina& sl)
+	{
+
+		file << sl.id << " " << sl.durataViataZile << " " << sl.valoarePreluata <<" ";
+		file << sl.apartine << " ";
+		if (sl.apartine)
+		{
+			file << sl.getZona() << " ";
+		}
+		else
+			file << zone<senzor>::getNumeZona() << " ";
+		sl.goToFileSenzor(file);
+		return file;
+	}
+	friend fstream& operator>>(fstream& file, senzorLumina& sl)
+	{
+		string zona;
+		int id;
+		file >>id>> sl.durataViataZile >> sl.valoarePreluata;//id ul va fi preluat inainte (in main) pentru ca sl sa fie construit direct cu acel id, nu cu un id automat
+		file >> sl.apartine;
+		file >> zona;//zona nu are importanta, zona este aceeasi pentru acelasi tip de senzori, deoarece este clasa template. Singurul caz in care este diferita este atunci cand 
+		//senzorul nu apartine sistemului, caz care este oricum acoperit de booleanul apartine
+		file >> (senzor&)sl;
+		return file;
+	}
+	friend istream& operator>>(istream& in, senzorLumina& sl)
+	{
+		cout << endl << "Durata de viata in zile: ";
+		in >> sl.durataViataZile;
+		cout << endl << "Valoarea preluata: ";
+		in >> sl.valoarePreluata;
+		cout << endl << "Apartine sistemului? 1-DA, 0-NU: ";
+		in >> sl.apartine;
+		in >> (senzor&)sl;
+		return in;
+	}
+	friend ostream& operator<<(ostream& out, senzorLumina& sl)
+	{
+		out << endl << " SENZOR LUMINA " << endl;
+		out << endl << "ID: " << sl.id;
+		out << endl << "Durata de viata in zile: ";
+		out << sl.durataViataZile;
+		out << endl << "Valoarea preluata: ";
+		out << sl.valoarePreluata;
+		out << endl << "Apartine sistemului? 1-DA, 0-NU: ";
+		out << sl.apartine;
+		out << endl << "Zona in care e amplasat: ";
+		if (sl.apartine)
+		{
+			out << sl.getZona()<<endl;
+		}
+		else
+			out << zone<senzor>::getNumeZona() <<endl;
+		out << (senzor&)sl;
+		return out;
+	}
+};
+int senzorTemperatura::nrST = 0;
+int senzorUmiditate::nrSU = 0;
+const char* zone<senzorTemperatura>::numeZona = "Centrala";
+const char* zone<senzorUmiditate>::numeZona = "Centrala";
+const char* zone<senzorLumina>::numeZona = "Periferica";
+const char* zone<senzor>::numeZona = "Extern";
+int senzorLumina::nrSL = 0;
+void printMenu()
+{
+	cout << endl << "----SISTEM DE IRIGATIE INTELIGENT----" << endl << "Alegeti o optiune : " << endl;
+	cout << "1. Adaugati un nou senzor in sistem." << endl << "2. Afisarea profilului senzorilor sistemului de irigatie inteligent." << endl << "3. Calcul umiditate atmosfera.(se creste/se scade automat temperatura mediului)";
+	cout << endl << "4. Calcul temperatura mediu." << endl << "5. Calcul grad de inteligenta al sistemului IoT." << endl << "6. Alegeti o zona in care sa aprindeti lumina daca este stinsa."<< endl << "7. System clear."<<endl<<"8. Exit Controller.";
+}
+double calculTemperaturaMedie(senzorTemperatura** st, int dim)
+{
+	double med = 0;
+	for (int i = 0; i < dim; i++)
+	{
+		med+=st[i]->getTemperaturaPreluata();
+	}
+	med /= dim;
+	return med;
+}
+template<typename tip>double calculNrInteractiuniUtiliz(tip** senzor, int dim)
+{
+	int nr = 0;
+	double med = 0;
+	for (int i = 0; i < dim; i++)
+	{
+		if (senzor[i]->apartineSistemului())
+		{
+			nr++;
+			med += senzor[i]->getNrInteractiuni();
+		}
+	}
+	med /= nr;
+	return med;
+}
+template <class tip> void populareFisier(fstream& f, tip** senzor, int dim)
+{
+	exceptii exc;
+	if (f.is_open())
+	{
+		for (int i = 0; i < dim; i++)
+		{
+			f << *(senzor[i]);
+		}
+		f.close();
+	}
+	else
+		throw exc.exceptieDeschidereFisier();
+}
+void setDimensiuni(float a, float b, float c, float dim[3])
+{
+	dim[0] = a;
+	dim[1] = b;
+	dim[2] = c;
+}
+template <class tip> void deleteSensors(tip** senzor, int dim)
+{
+	for (int i = 0; i < dim; i++)
+	{
+		delete senzor[i];
+	}
+	delete[]senzor;
+}
+template<class tip>int numaraSenzoriFisier(fstream& f, const char* nume)
+{
+	int nr = -1;
+	exceptii ex;
+	tip senzor;
+	f.open(nume, ios::in);
+	if (f)
+	{
+			while (!f.eof())
+			{
+				f >> senzor;
+				++nr;
+			}
+	}
+	else
+		throw ex.exceptieDeschidereFisier();
+	f.close();
+
+	return nr;
+}
+template <class tip> void preiaFisier(tip** senzor, const char* nume)
+{
+	fstream f;
+	int a = numaraSenzoriFisier<tip>(f, nume);
+	f.open(nume, ios::in);
+	f.seekg(0, ios::beg);
+	for (int i = 0; i < a; i++)
+	{
+		f >> *senzor[i];
+	}
+	f.close();
+}
+const char* giveGrade(double a)
+{
+	if (a < 5)
+	{
+		return "Inteligenta minima";
+	}
+	else if (a >= 5 && a < 7)
+	{
+		return "Inteligenta mediocra";
+	}
+	else if (a >= 7 && a < 9)
+	{
+		return "Inteligenta ridicata";
+	}
+	else
+		return "Inteligenta foarte ridicata";
+}
+void main()
+{
+	{
+		cout << endl << "-------- TESTARI --------" << endl;
+		senzorLumina sl1, sl2, sl3(23, 34, 1, 34, 3, 2, 4, 4);
+		senzorTemperatura st1(35, 3, new double[3]{ 33, 32, 34 }, 1, 34, new float[3]{ 1, 2, 3 }, 4), st2 = st1, st3;
+		senzorUmiditate su1(0.65, st1, 34, new float[3]{ 1, 1, 1 }, 3, 1), su2;
+		cout << sl1 << sl2 << sl3 << st1 << st2 <<st3<< su1 << su2;
+		su2 = su1;
+		st3 = st1;
+		sl2 = sl3;
+		cout << su2<<st3<<sl2;
+		//TESTE PE SENZORI DE UMIDITATE
+		cout << su2;
+		--su2;//se scade 1 din nr de int utiliz
+		su2 -= 0.1;//se scade 0.1 din umid relativa
+		if(su2.operator<(su1))
+			cout << endl << "SU2 are mai putine interactiuni cu utilizatorii";
+		else
+			cout << endl << "SU1 are mai putine interactiuni cu utilizatorii";
+		if (!su2)
+			cout << endl << "SU2 nu apartine sistemului";
+		else
+			cout << endl << "SU2 apartine sistemului";
+		cout << su2;
+		//TESTE PE SENZORI DE TEMPERATURA
+		cout << st2;
+		st2 = st2 + 3;//se creste temperatura preluata cu 3
+		st2 += 3;//se mai creste cu 3
+		st1=st2++;//st1 va fi st2 cu temperatura preluata dinainte de incrementare
+		st2[0] = 3;
+		cout << st1;
+		cout << st2;
+		//TESTE PE SENZORI DE LUMINA
+		cout << sl2<<sl1;
+		if(sl2())
+			cout << endl << "SL2 inregistreaza lumina aprinsa";
+		else
+			cout << endl << "SL2 inregistreaza lumina stinsa";
+		sl2 *= 2; //se inmulteste cu 2 valoarea preluata
+		sl2=sl2*sl1;//se inmulteste vall cu val lui sl1
+		sl2 = sl2 + 3;//se aduna valoarea preluata cu 3
+		cout << sl2;
+
+		sl2 = --sl2;//se scade durata de viata in zile cu 1
+		cout << sl2;
+		cout << endl << "-------- SFARSIT TESTARI --------" << endl;
+
+	}
+	bool control = true;
+	int dim1 = 10;
+	int optiune;
+	fstream f1, f2, f3, f4;
+	senzorTemperatura** ST=new senzorTemperatura*[dim1];
+	float dimensiuniStd[3] = { 2, 2, 5 };
+	for (int i = 0; i < dim1; i++)
+	{
+		ST[i] = new senzorTemperatura(2.0 * i + 10, 3, new double[3]{ 2.5 * i + 11, 2.0 * i + 14, 2.0 * i + 9 }, 1, 2000, dimensiuniStd, i + 5);
+	}
+	setDimensiuni(4.0, 4.1, 5.2, dimensiuniStd);
+	int dim2 = 8;
+	senzorUmiditate** SU = new senzorUmiditate * [dim2];
+	for (int i = 0; i < dim2; i++)
+	{
+		SU[i] = new senzorUmiditate(0.05*i+0.3, *ST[i], 250, dimensiuniStd, 6, 1);
+	}
+	int dim3 = 9;
+	senzorLumina** SL = new senzorLumina * [dim3];
+	for (int i = 0; i < dim3; i++)
+	{
+		SL[i] = new senzorLumina(400 + 5 * i, 30.0+i, 1, 220, 2, 2, 3, 10);
+	}
+	//popularea fisierelor
+	f1.open("senzoriTemperatura.txt", ios::out |ios::trunc);
+	f2.open("senzoriUmiditate.txt", ios::out| ios::trunc);
+	f3.open("senzoriLumina.txt", ios::out| ios::trunc);
+	try
+	{
+		populareFisier<senzorTemperatura>(f1, ST, dim1);
+		populareFisier<senzorUmiditate>(f2, SU, dim2);
+		populareFisier<senzorLumina>(f3, SL, dim3);
+	}
+	catch (string mesaj)
+	{
+		cout << mesaj;
+	}
+	catch (...) { cout << "Nu s-a detectat eroarea."; }
+	
+	f1.close();
+	f2.close();
+	f3.close();
+	deleteSensors(ST, dim1);
+	deleteSensors(SU, dim2);
+	deleteSensors(SL, dim3);
+	//interfata cu utilizatorul
+	while (control)
+	{
+	printMenu();
+	cin >> optiune;
+	switch (optiune)
+		{
+		case 1:
+		{
+			int op = 0;
+			exceptii ex;
+			cout << endl << "Ce tip de senzor?" << endl << "1. Temperatura " << endl << "2. Umiditate " << endl << "3. Lumina ";
+			cin >> op;
+			try
+			{
+				switch (op)
+				{
+				case 1:
+				{
+					senzorTemperatura st;
+					f1.open("senzoriTemperatura.txt", ios::out | ios::app);
+					if (f1.is_open())
+					{
+						cin >> st;
+						f1 << st;
+						f1.close();
+					}
+					else
+						throw ex.exceptieDeschidereFisier();
+
+					break;
+				}
+				case 2:
+				{
+					senzorUmiditate su;
+					f2.open("senzoriUmiditate.txt", ios::out | ios::app);
+					f1.open("senzoriTemperatura.txt", ios::out | ios::app);
+
+					if (f2.is_open()&&f1.is_open())
+					{
+						cin >> su;
+						f2 << su;
+						f1 << (senzorTemperatura&)su;
+						f2.close();
+						f1.close();
+					}
+					else
+						throw ex.exceptieDeschidereFisier();
+					break;
+				}
+				case 3:
+				{
+					senzorLumina sl;
+					f3.open("senzoriLumina.txt", ios::out | ios::app);
+					if (f3.is_open())
+					{
+						cin >> sl;
+						f3 << sl;
+						f3.close();
+					}
+					else
+						throw ex.exceptieDeschidereFisier();
+					break;
+				}
+				default:
+				{
+					cout << endl << "Ati ales o optiune invalida." << endl;
+					break;
+				}
+				}
+			}
+			catch (string mesaj) { cout << mesaj; }
+		break;
+	}
+		case 2:
+		{
+			try {
+				int dimensiuni[3];
+				dimensiuni[0]=numaraSenzoriFisier<senzorTemperatura>(f1, "senzoriTemperatura.txt");
+				dimensiuni[1]=numaraSenzoriFisier<senzorUmiditate>(f2, "senzoriUmiditate.txt");
+				dimensiuni[2] = numaraSenzoriFisier<senzorLumina>(f3, "senzoriLumina.txt");
+				senzorTemperatura** st = new senzorTemperatura * [dimensiuni[0]];
+				for (int i = 0; i < dimensiuni[0]; i++)
+				{
+					st[i] = new senzorTemperatura(i);
+				}
+				senzorUmiditate** su = new senzorUmiditate * [dimensiuni[1]];
+				for (int i = 0; i < dimensiuni[1]; i++)
+				{
+					su[i] = new senzorUmiditate(i);
+				}
+				senzorLumina** sl = new senzorLumina * [dimensiuni[2]];
+				for (int i = 0; i < dimensiuni[2]; i++)
+				{
+					sl[i] = new senzorLumina(i);
+				}
+				preiaFisier<senzorTemperatura>(st, "senzoriTemperatura.txt");
+				preiaFisier<senzorUmiditate>(su, "senzoriUmiditate.txt");
+				preiaFisier<senzorLumina>(sl, "senzoriLumina.txt");
+				cout << endl << "SENZORI CARE APARTIN SISTEMULUI" << endl;
+				for (int i = 0; i < dimensiuni[0]; i++)
+				{
+					if (st[i]->apartineSistemului())
+						cout << *st[i];
+				}
+				for (int i = 0; i < dimensiuni[1]; i++)
+				{
+					if (su[i]->apartineSistemului())
+						cout << *su[i];
+				}
+				for (int i = 0; i < dimensiuni[2]; i++)
+				{
+					if (sl[i]->apartineSistemului())
+						cout << *sl[i];
+				}
+				cout << endl << "SENZORI CARE NU APARTIN SISTEMULUI" << endl;
+				for (int i = 0; i < dimensiuni[0]; i++)
+				{
+					if (!st[i]->apartineSistemului())
+						cout << *st[i];
+				}
+				for (int i = 0; i < dimensiuni[1]; i++)
+				{
+					if (!su[i]->apartineSistemului())
+						cout << *su[i];
+				}
+				for (int i = 0; i < dimensiuni[2]; i++)
+				{
+					if (!sl[i]->apartineSistemului())
+						cout << *sl[i];
+				}
+				deleteSensors(st, dimensiuni[0]);
+				deleteSensors(su, dimensiuni[1]);
+				deleteSensors(sl, dimensiuni[2]);
+				f1.close(); f2.close(); f3.close();
+			}
+			catch (string mesaj) { cout << mesaj; }
+			break;
+		}
+		case 3:
+		{
+			try {
+				exceptii ex;
+				int dim[2] = { numaraSenzoriFisier<senzorTemperatura>(f1, "senzoriTemperatura.txt") , numaraSenzoriFisier<senzorUmiditate>(f2, "senzoriUmiditate.txt") };
+				senzorTemperatura** st = new senzorTemperatura * [dim[0]];
+				for (int i = 0; i < dim[0]; i++)
+				{
+					st[i] = new senzorTemperatura(i);
+				}
+				senzorUmiditate** su = new senzorUmiditate * [dim[1]];
+				for (int i = 0; i < dim[1]; i++)
+				{
+					su[i] = new senzorUmiditate(i);
+				}
+				f2.open("senzoriUmiditate.txt", ios::in);
+				preiaFisier<senzorUmiditate>(su, "senzoriUmiditate.txt");
+				f2.close();
+
+				cout << endl << "SENZORII DIN SISTEM CU CARE PUTETI INTERACTIONA" << endl;
+				for (int i = 0; i < dim[1]; i++)
+				{
+					if (su[i]->apartineSistemului())
+						cout << *su[i];
+				}
+				int id;
+				cout << endl << "Introduceti id-ul senzorului la care sa se calculeze umiditatea din mediu: ";
+				cin >> id;
+				for (int i = 0; i < dim[1]; i++)
+				{
+					if (su[i]->apartineSistemului())
+					{
+						if (su[i]->getID() == id)
+						{
+						cout << endl << "Se calculeaza umiditatea din atmosfera .... " << endl << "Umiditate: " << su[i]->outputDupaPrelucrare();
+						if (su[i]->outputDupaPrelucrare() < 7)
+						{
+							cout << endl << "Umiditate prea mica! Cresteti temperatura! ";
+							cout << endl << "Se creste temperatura ...";
+							for (int j = 0; j < 8 - su[i]->outputDupaPrelucrare(); j++)
+							{
+								su[i]->getST()++;
+								cout << endl << "Temperatura curenta: " << (su[i]->getST()).getTemperaturaPreluata();
+							}
+							try {
+							f2.open("senzoriUmiditate.txt", ios::out|ios::trunc);
+							populareFisier<senzorUmiditate>(f2, su, dim[1]);
+							f2.close();
+							}
+							catch (string mesaj) { cout << mesaj; }
+						}
+						else if (su[i]->outputDupaPrelucrare() > 9)
+						{
+							cout << endl << "Umiditate prea mare! Scadeti temperatura! ";
+							cout << endl << "Se scade temperatura ...";
+							for (int j = 9; j > 8 - su[i]->outputDupaPrelucrare(); j--)
+							{
+								su[i]->getST()--;
+								cout << endl << "Temperatura curenta: " << (su[i]->getST()).getTemperaturaPreluata();
+							}
+							try {
+								f2.open("senzoriUmiditate.txt", ios::out | ios::trunc);
+								populareFisier<senzorUmiditate>(f2, su, dim[1]);
+								f2.close();
+							}
+							catch (string mesaj) { cout << mesaj; }
+						}
+						else
+							cout << endl << "Umiditate potrivita ... ";
+						}
+
+					}
+
+				}
+				deleteSensors(st, dim[0]);
+				deleteSensors(su, dim[1]);
+
+			}
+			catch (string mesaj)
+			{
+				cout << mesaj;
+			}
+			break;
+		}
+		case 4:
+		{
+			try
+			{
+				int dim = numaraSenzoriFisier<senzorTemperatura>(f1, "senzoriTemperatura.txt");
+				senzorTemperatura** st = new senzorTemperatura * [dim];
+				for (int i = 0; i < dim; i++)
+				{
+					st[i] = new senzorTemperatura(i);
+				}
+				preiaFisier<senzorTemperatura>(st, "senzoriTemperatura.txt");
+				cout << endl << "Media temperaturii inregistrata de senzorii de temperatura din sistem este " << calculTemperaturaMedie(st, dim) << "." << endl;
+				deleteSensors(st, dim);
+			}
+			catch (string mesaj)
+			{
+				cout << mesaj;
+			}
+			break;
+		}
+		case 5:
+		{
+			int dim[3] = { numaraSenzoriFisier<senzorTemperatura>(f1, "senzoriTemperatura.txt") , numaraSenzoriFisier<senzorUmiditate>(f2, "senzoriUmiditate.txt"),  numaraSenzoriFisier<senzorLumina>(f3, "senzoriLumina.txt") };
+			senzorTemperatura** st = new senzorTemperatura * [dim[0]];
+			for (int i = 0; i < dim[0]; i++)
+			{
+				st[i] = new senzorTemperatura(i);
+			}
+			senzorUmiditate** su = new senzorUmiditate * [dim[1]];
+			for (int i = 0; i < dim[1]; i++)
+			{
+				su[i] = new senzorUmiditate(i);
+			}
+			senzorLumina** sl = new senzorLumina * [dim[2]];
+			for (int i = 0; i < dim[2]; i++)
+			{
+				sl[i] = new senzorLumina(i);
+			}
+			preiaFisier<senzorTemperatura>(st, "senzoriTemperatura.txt");
+			preiaFisier<senzorUmiditate>(su, "senzoriUmiditate.txt");
+			preiaFisier<senzorLumina>(sl, "senzoriLumina.txt");
+			cout << endl << "Senzorii de temperatura au in medie " << calculNrInteractiuniUtiliz<senzorTemperatura>(st, dim[0]) << ", grad de inteligenta:" << giveGrade(calculNrInteractiuniUtiliz<senzorTemperatura>(st, dim[0]));
+			cout << endl << "Senzorii de umiditate au in medie " << calculNrInteractiuniUtiliz<senzorUmiditate>(su, dim[1]) << ", grad de inteligenta:" << giveGrade(calculNrInteractiuniUtiliz<senzorUmiditate>(su, dim[1]));
+			cout << endl << "Senzorii de lumina au in medie " << calculNrInteractiuniUtiliz<senzorLumina>(sl, dim[2]) << ", grad de inteligenta:" << giveGrade(calculNrInteractiuniUtiliz<senzorLumina>(sl, dim[2]));
+			cout << endl << "Medie sistem: " << (calculNrInteractiuniUtiliz<senzorTemperatura>(st, dim[0]) + calculNrInteractiuniUtiliz<senzorUmiditate>(su, dim[1]) + calculNrInteractiuniUtiliz<senzorLumina>(sl, dim[2])) / 3;
+			cout << ", grad de inteligenta:" << giveGrade((calculNrInteractiuniUtiliz<senzorTemperatura>(st, dim[0]) + calculNrInteractiuniUtiliz<senzorUmiditate>(su, dim[1]) + calculNrInteractiuniUtiliz<senzorLumina>(sl, dim[2])) / 3);
+			deleteSensors(st, dim[0]);
+			deleteSensors(su, dim[1]);
+			deleteSensors(sl, dim[2]);
+			break;
+		}
+		case 6:
+		{
+			try
+			{
+			int dim = numaraSenzoriFisier<senzorLumina>(f3, "senzoriLumina.txt");
+			senzorLumina** sl = new senzorLumina * [dim];
+			for (int i = 0; i < dim; i++)
+			{
+				sl[i] = new senzorLumina(i);
+			}
+			preiaFisier<senzorLumina>(sl, "senzoriLumina.txt");
+			int op;
+			cout << endl << "In ce zona doriti sa aprindeti lumina? 1. Periferica	2. Externa " << endl;
+			cin >> op;
+			switch (op)
+			{
+			case 1:
+			{
+				cout << "Se aprinde lumina in toata zona periferica..." << endl;
+				for (int i = 0; i < dim; i++)
+				{
+					if(sl[i]->apartineSistemului())
+						sl[i]->aprindeLumina();
+				}
+				f3.open("senzoriLumina.txt", ios::out | ios::trunc);
+				populareFisier<senzorLumina>(f3, sl, dim);
+				f3.close();
+				break;
+			}
+			case 2:
+			{
+				cout << "Se aprinde lumina in toata zona externa..." << endl;
+				for (int i = 0; i < dim; i++)
+				{
+					if (!sl[i]->apartineSistemului())
+						sl[i]->aprindeLumina();
+				}
+				f3.open("senzoriLumina.txt", ios::out | ios::trunc);
+				populareFisier<senzorLumina>(f3, sl, dim);
+				f3.close();
+				break;
+			}
+			}
+			deleteSensors(sl, dim);
+			}
+			catch (string mesaj) { cout << mesaj; }
+			catch (int cod) { cout << cod; }
+			catch (...) { cout << "Nu s-a detectat"; }
+			
+			
+			break;
+		}
+		case 7:
+		{
+			system("cls");
+			break;
+		}
+		case 8:
+		{
+			control = false;
+			break;
+		}
+		}
+	}
+	
+	
+}
